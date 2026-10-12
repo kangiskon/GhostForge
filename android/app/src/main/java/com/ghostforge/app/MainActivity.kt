@@ -79,6 +79,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var error by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<ScanFinding?>(null) }
     val history = remember { mutableStateListOf<ScanFinding>() }
+    val savedHistory = remember { mutableStateListOf<ScanEvent>().apply { addAll(SecurityHistory.read(context)) } }
     val scope = rememberCoroutineScope()
     var consent by rememberSaveable { mutableStateOf(false) }
     var blockedDomains by rememberSaveable { mutableStateOf(prefs.getString("blocked_domains", "") ?: "") }
@@ -192,6 +193,10 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                 onSuccess = { item ->
                     result = item; history.add(0, item)
                     if (history.size > 20) history.removeAt(history.lastIndex)
+                    runCatching { SecurityHistory.record(context, item) }.onSuccess { event ->
+                        savedHistory.add(0, event)
+                        if (savedHistory.size > 150) savedHistory.removeAt(savedHistory.lastIndex)
+                    }
                 },
                 onFailure = { error = it.message ?: "Scanner unavailable. Check your backend." }
             )
@@ -200,7 +205,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     }
     Scaffold(containerColor = ink, bottomBar = {
         Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            listOf(0 to "Home", 1 to "Links", 6 to "Scams", 4 to "DNS Guard", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 2 to "History", 3 to "Settings").forEach { (i, name) ->
+            listOf(0 to "Home", 4 to "DNS Guard", 1 to "Links", 6 to "Scams", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 9 to "Account", 10 to "Premium", 2 to "History", 3 to "Settings").forEach { (i, name) ->
                 Text(name, modifier = Modifier.clickable { tab = i }.padding(10.dp),
                     color = if (tab == i) mint else muted, fontSize = 13.sp)
             }
@@ -228,7 +233,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         }
                     }
                     Section("Your security toolkit", "Analyze links shared from other apps or encoded in QR codes.")
-                    Text("Links scanned this session: " + history.size, color = mint)
+                    Text("Saved security checks: " + savedHistory.size, color = mint)
                     OutlinedButton(onClick = { tab = 6 }) { Text("INVESTIGATE A SCAM MESSAGE") }
                     OutlinedButton(onClick = { tab = 7 }) { Text("CHECK DEVICE SECURITY") }
                     OutlinedButton(onClick = { tab = 8 }) { Text("MONITOR VERIFIED EMAIL BREACHES") }
@@ -264,19 +269,24 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     }
                 }
                 2 -> {
-                    Section("Recent checks", "Stored only while the app process runs.")
-                    if (history.isEmpty()) Note("No scans yet.", muted)
-                    history.forEach { item ->
-                        Surface(color = panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().clickable {
-                            result = item; link = item.url; tab = 1
-                        }) {
+                    Section("Saved checks", "Encrypted on your device. Only hostname, verdict and timestamp are retained.")
+                    if (savedHistory.isEmpty()) Note("No checks saved yet.", muted)
+                    savedHistory.forEach { event ->
+                        Surface(color = panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(14.dp)) {
-                                Text(item.host, color = Color.White)
-                                Text(item.verdict.uppercase(), color = muted, fontSize = 12.sp)
+                                Text(event.host, color = Color.White)
+                                Text(event.verdict.uppercase(), color = muted, fontSize = 12.sp)
+                                Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(event.whenEpochMillis)),
+                                    color = muted, fontSize = 12.sp)
                             }
                         }
                     }
-                    TextButton(onClick = { history.clear() }) { Text("Clear history") }
+                    OutlinedButton(onClick = {
+                        history.clear()
+                        savedHistory.clear()
+                        SecurityHistory.clear(context)
+                    }) { Text("DELETE MY SCAN HISTORY") }
+                    Note("Full URLs, query strings, scam text and APK files aren't saved in this history.", muted)
                 }
 
                 4 -> {
@@ -372,6 +382,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                 6 -> ScamScreen(endpoint, shared)
                 7 -> DeviceScreen()
                 8 -> BreachScreen(endpoint)
+                9 -> AccountScreen(endpoint, onVerifyEmail = { tab = 8 })
+                10 -> PremiumScreen(endpoint, onVerifyEmail = { tab = 8 })
                 3 -> {
                     Section("Settings", "Connect your trusted HTTPS GhostForge scanner server.")
                     OutlinedTextField(value = endpointDraft, onValueChange = { endpointDraft = it },
@@ -385,7 +397,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.3.2 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.4.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }

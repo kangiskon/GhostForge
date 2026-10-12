@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, Header
+from urllib.parse import unquote
+from . import accounts, billing
 from .scams import ScamRequest, ScamResponse, investigate
 from .breaches import EmailInput, VerifyInput, request_code, verify_code, auth_email, breach_lookup, erase
 from pydantic import BaseModel, Field
@@ -48,3 +50,66 @@ async def breach_check(authorization: str | None = Header(default=None)):
 @app.post("/api/v1/breach/delete")
 def breach_delete(authorization: str | None = Header(default=None)):
     return erase(authorization)
+
+
+# Verified-email login is the initial GhostForge account identity.
+# Every inventory/household/entitlement operation requires a bearer session.
+@app.get("/api/v1/account/me")
+def account_me(authorization: str | None = Header(default=None)):
+    return accounts.profile(auth_email(authorization))
+
+@app.post("/api/v1/account/devices")
+def account_register_device(
+    body: accounts.DeviceUpsert, authorization: str | None = Header(default=None)
+):
+    return accounts.register_device(auth_email(authorization), body)
+
+@app.delete("/api/v1/account/devices/{device_id}")
+def account_remove_device(device_id: str, authorization: str | None = Header(default=None)):
+    return accounts.remove_device(auth_email(authorization), device_id)
+
+@app.get("/api/v1/family")
+def household_info(authorization: str | None = Header(default=None)):
+    return accounts.family_info(auth_email(authorization))
+
+@app.post("/api/v1/family")
+def household_create(authorization: str | None = Header(default=None)):
+    return accounts.create_household(auth_email(authorization))
+
+@app.post("/api/v1/family/invite")
+def household_invite(authorization: str | None = Header(default=None)):
+    return accounts.issue_invite(auth_email(authorization))
+
+@app.post("/api/v1/family/join")
+def household_join(body: accounts.InviteInput,
+                   authorization: str | None = Header(default=None)):
+    return accounts.join_household(auth_email(authorization), body.invite_code)
+
+@app.delete("/api/v1/family/members/{member_email}")
+def household_remove_member(member_email: str,
+                            authorization: str | None = Header(default=None)):
+    return accounts.remove_member(auth_email(authorization), member_email.strip().lower())
+
+@app.delete("/api/v1/family")
+def household_delete(authorization: str | None = Header(default=None)):
+    return accounts.delete_household(auth_email(authorization))
+
+@app.delete("/api/v1/account")
+def account_delete(authorization: str | None = Header(default=None)):
+    return accounts.account_delete(auth_email(authorization))
+
+@app.get("/api/v1/billing/config")
+def billing_config():
+    import os
+    enabled = os.getenv("GHOSTFORGE_PLAY_BILLING_ENABLED", "").lower() == "true"
+    return {"enabled": enabled, "product_ids": sorted(billing.allowed_products()) if enabled else [],
+            "message": "Google Play billing requires registered products, a Play-distributed app and server verification."}
+
+@app.get("/api/v1/billing/status")
+def billing_status(authorization: str | None = Header(default=None)):
+    return billing.entitlement(auth_email(authorization))
+
+@app.post("/api/v1/billing/verify")
+async def billing_verify(body: billing.PurchaseRequest,
+                         authorization: str | None = Header(default=None)):
+    return await billing.verify_subscription(auth_email(authorization), body)
