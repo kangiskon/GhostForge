@@ -43,7 +43,14 @@ func validIPv4(p []byte,source,dest string) bool {
  if ihl<20||ihl>len(p){return false}
  total:=int(binary.BigEndian.Uint16(p[2:4]))
  if total!=len(p){return false}
- // A single beta client is assigned 10.74.0.2.
+ // This single-client gateway only accepts source traffic from the
+ // authenticated client's assigned address and only returns packets to it.
+ if source == "src" && (p[12] != 10 || p[13] != 74 || p[14] != 0 || p[15] != 2) {
+  return false
+ }
+ if dest == "dst" && (p[16] != 10 || p[17] != 74 || p[18] != 0 || p[19] != 2) {
+  return false
+ }
  return true
 }
 func tokenFromEnv() ([]byte,error) {
