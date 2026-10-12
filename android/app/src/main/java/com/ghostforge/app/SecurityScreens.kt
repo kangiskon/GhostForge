@@ -85,10 +85,15 @@ fun ScamScreen(endpoint: String, shared: String) {
         Button(onClick = {
             feedback = ""; data = null; busy = true
             scope.launch {
-                SecurityApi.analyze(endpoint, content, usingAi).fold(
-                    onSuccess = { data = it },
-                    onFailure = { feedback = it.message ?: "Analysis unavailable" }
-                )
+                val configured = endpoint.startsWith("https://") && !endpoint.endsWith(".invalid")
+                val analysis = if (configured) {
+                    SecurityApi.analyze(endpoint, content, usingAi)
+                        .getOrElse { OfflineScanner.message(content) }
+                } else OfflineScanner.message(content)
+                data = analysis
+                feedback = if (analysis.optString("mode") == "offline_heuristics")
+                    "Offline warning-sign analysis only. AI and live threat intelligence are unavailable."
+                else ""
                 busy = false
             }
         }, enabled = !busy && content.length >= 3, modifier = Modifier.fillMaxWidth()) {
@@ -111,7 +116,7 @@ fun ScamScreen(endpoint: String, shared: String) {
             }
             Detail(result.optString("privacy"), muted)
         }
-        Detail("This is risk guidance, not proof a message is authentic. Heuristic and AI modes require a configured HTTPS backend.", warn)
+        Detail("Local warning-sign checks work offline. Live AI explanations require your configured HTTPS backend and consent. No scan proves authenticity.", warn)
     }
 }
 

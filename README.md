@@ -6,14 +6,14 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.4
+## Features in v0.4.1
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
-| Link investigator | URL inspection, known-threat feeds, manual link sharing and QR scans | Google Web Risk needs API key and hosted backend |
+| Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
 | DNS Guard | Optional DNS-only local VPN; Cloudflare Families anti-malware/phishing DNS plus custom blocklist | Not HTTPS-content interception; other VPN/Private DNS conflicts possible |
 | APK inspector | User-selected APK hashes, manifest permission warnings, vetted malicious hash matching | Heuristics and known hashes aren't comprehensive antivirus |
-| Scam investigator | Rule-based explanations and opt-in AI-generated guidance | Hosted API and optional AI key required; never claims 'safe' |
+| Scam investigator | Offline warning-sign analysis, screenshots and optional AI-generated guidance | Live AI requires a configured backend; never claims safe |
 | Screenshot checks | On-device OCR of an explicitly chosen screenshot | User must review and choose to submit extracted text |
 | Device audit | Screen lock, security-patch age and USB debugging checks | Cannot attest Play Protect or detect every compromise |
 | Breach monitoring | Verified email address, licensed HIBP account check, scheduled opt-in notification checks | Requires SMTP and HIBP licensing; sessions expire |
@@ -33,3 +33,5 @@ See [deployment and security](docs/DEPLOYMENT-SECURITY.md), [account/billing set
 This is **not** a production Guardio equivalent. Real malware engine validation, signed Play Store release, live paid subscriptions, independently audited family/account infrastructure, industrial threat intelligence, independent security audits, and store-policy approval are outstanding. DNS filtering should be tested on a secondary device before being relied upon.
 
 Backend CI tests and Gradle debug APK compilation run on GitHub Actions for every push and pull request.
+
+**Offline mode (v0.4.1):** GhostForge can assess obvious warning signs in links and pasted scam messages even without an HTTPS backend. Offline detection performs **no threat-feed lookup** and never declares a link or message safe. If a configured remote scanner fails, the app falls back to the same limited local checks.
