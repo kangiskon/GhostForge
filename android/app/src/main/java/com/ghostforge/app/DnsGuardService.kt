@@ -70,6 +70,9 @@ class DnsGuardService : VpnService() {
                     .addAddress("10.117.0.2", 32)
                     .addDnsServer("10.117.0.1")
                     .addRoute("10.117.0.1", 32)
+                    // Exclude GhostForge itself to avoid recursive lookups when contacting
+                    // the HTTPS resolver or refreshing the feed.
+                    .addDisallowedApplication(packageName)
                     .establish()
                 if (descriptor == null) {
                     lastError = "Android refused to establish the DNS VPN."
