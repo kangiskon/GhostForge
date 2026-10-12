@@ -4,6 +4,11 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -43,12 +48,35 @@ fun ScamScreen(endpoint: String, shared: String) {
     var feedback by remember { mutableStateOf("") }
     var data by remember { mutableStateOf<JSONObject?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val image = InputImage.fromFilePath(context, uri)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                recognizer.process(image)
+                    .addOnSuccessListener {
+                        content = it.text.take(5000)
+                        feedback = if (content.isNotBlank())
+                            "Text extracted on-device. Review it before submitting any analysis."
+                        else "No readable text was found in this image."
+                    }
+                    .addOnFailureListener { feedback = it.message ?: "Screenshot text extraction failed." }
+                    .addOnCompleteListener { recognizer.close() }
+            } catch (err: Exception) {
+                feedback = err.message ?: "The image could not be opened."
+            }
+        }
+    }
     LaunchedEffect(shared) { if (shared.isNotBlank()) content = shared }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Heading("Scam Investigator", "Paste or share a suspicious SMS, email, social message, or online offer. Links are never opened.")
         OutlinedTextField(value = content, onValueChange = { content = it.take(5000) },
             modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
             label = { Text("Message to inspect") }, minLines = 5, maxLines = 12)
+        OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
+            Text("EXTRACT TEXT FROM SCREENSHOT")
+        }
         Row(modifier = Modifier.fillMaxWidth()) {
             Checkbox(checked = usingAi, onCheckedChange = { usingAi = it })
             Text("Opt in to external AI analysis. Sends your selected text to the configured AI provider.",

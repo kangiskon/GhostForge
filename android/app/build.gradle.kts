@@ -38,5 +38,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     implementation("androidx.work:work-runtime-ktx:2.10.5")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

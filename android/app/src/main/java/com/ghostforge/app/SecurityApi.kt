@@ -41,6 +41,8 @@ object VerifiedSession {
             .putString("token", Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP))
             .putString("email", email)
             .apply()
+        context.getSharedPreferences("ghostforge_settings", Context.MODE_PRIVATE)
+            .edit().remove("last_breach_list").apply()
     }
     fun get(context: Context): String? {
         return try {
