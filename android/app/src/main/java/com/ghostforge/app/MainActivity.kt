@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
     private fun incoming(intent: Intent?): String {
         if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return ""
         val value = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty().take(2048)
-        return Regex("""https?://[^\s<>()]+""").find(value)?.value ?: value
+        return value
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,7 +109,10 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     }
 
     LaunchedEffect(shared) {
-        if (shared.isNotBlank()) { link = shared; tab = 1 }
+        if (shared.isNotBlank()) {
+            if (shared.trim().matches(Regex("""https?://\S+"""))) { link = shared; tab = 1 }
+            else { tab = 6 }
+        }
     }
     fun scan(text: String) {
         if (busy) return
@@ -128,7 +131,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     }
     Scaffold(containerColor = ink, bottomBar = {
         Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            listOf(0 to "Home", 1 to "Links", 4 to "DNS Guard", 5 to "APK Scan", 2 to "History", 3 to "Settings").forEach { (i, name) ->
+            listOf(0 to "Home", 1 to "Links", 6 to "Scams", 4 to "DNS Guard", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 2 to "History", 3 to "Settings").forEach { (i, name) ->
                 Text(name, modifier = Modifier.clickable { tab = i }.padding(10.dp),
                     color = if (tab == i) mint else muted, fontSize = 13.sp)
             }
@@ -157,6 +160,9 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     }
                     Section("Your security toolkit", "Analyze links shared from other apps or encoded in QR codes.")
                     Text("Links scanned this session: " + history.size, color = mint)
+                    OutlinedButton(onClick = { tab = 6 }) { Text("INVESTIGATE A SCAM MESSAGE") }
+                    OutlinedButton(onClick = { tab = 7 }) { Text("CHECK DEVICE SECURITY") }
+                    OutlinedButton(onClick = { tab = 8 }) { Text("MONITOR VERIFIED EMAIL BREACHES") }
                     Text("Local DNS Guard can only block listed domains; it does not inspect encrypted URLs or replace Google Play Protect.", color = amber)
                 }
                 1 -> {
@@ -268,6 +274,9 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         }
                     }
                 }
+                6 -> ScamScreen(endpoint, shared)
+                7 -> DeviceScreen()
+                8 -> BreachScreen(endpoint)
                 3 -> {
                     Section("Settings", "Connect your trusted HTTPS GhostForge scanner server.")
                     OutlinedTextField(value = endpointDraft, onValueChange = { endpointDraft = it },
@@ -281,7 +290,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.2.0 • DNS filtering is opt-in and only blocks listed domains. APK inspection is heuristic/hash-based, not complete malware detection. Accounts and subscriptions are not built.", amber)
+                    Note("Version 0.3.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
