@@ -1,0 +1,27 @@
+name: Test GhostForge Tunnel Server
+on:
+  push:
+    branches: [main]
+    paths: ['tunnel-server/**', 'tools/install-ghostforge-tunnel.sh', '.github/workflows/test-tunnel.yml']
+  pull_request:
+    branches: [main]
+    paths: ['tunnel-server/**', 'tools/install-ghostforge-tunnel.sh', '.github/workflows/test-tunnel.yml']
+permissions:
+  contents: read
+jobs:
+  go-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tunnel-server/go.mod
+          cache-dependency-path: tunnel-server/go.mod
+      - name: Test tunnel server and protocol
+        working-directory: tunnel-server
+        run: |
+          go test -v ./...
+          go vet ./...
+          go build -o /tmp/ghostforge-tunnel .
+      - name: Verify installer shell syntax
+        run: bash -n tools/install-ghostforge-tunnel.sh
