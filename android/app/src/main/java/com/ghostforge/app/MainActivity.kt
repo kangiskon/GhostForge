@@ -210,7 +210,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(if (guardRunning) "ACTIVE • $blocks DNS queries blocked this session" else "NOT RUNNING",
                                 color = if (guardRunning) mint else amber, fontWeight = FontWeight.Bold)
-                            Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare over HTTPS. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
+                            Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare Families over HTTPS for malware/phishing filtering. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
                                 color = muted, fontSize = 13.sp)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = consent, onCheckedChange = { consent = it })
@@ -238,7 +238,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         error = "Saved. Stop and restart DNS Guard to apply changes."
                     }) { Text("SAVE BLOCKLIST") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Only malware.test is preloaded as a demonstration rule. Configure a vetted backend threat feed to block real-world threats. Failure to resolve DNS can also indicate a network issue, not a confirmed threat.", amber)
+                    Note("Cloudflare Families also filters known malware/phishing domains. malware.test is a demonstration rule; configure a vetted backend feed for additional coverage. Failure to resolve DNS can also indicate a network issue, not a confirmed threat.", amber)
                 }
                 5 -> {
                     Section("APK File Inspector", "Inspect an APK you choose. Files are not uploaded.")

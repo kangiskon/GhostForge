@@ -18,7 +18,7 @@ import org.json.JSONObject
 
 /**
  * DNS-only split-tunnel VPN. Only requests sent to 10.117.0.1 are routed into the TUN.
- * Other IP traffic does not pass through the app. DNS-over-HTTPS goes directly to Cloudflare.
+ * Other IP traffic does not pass through the app. DNS-over-HTTPS uses Cloudflare Families malware/phishing resolver.
  * This cannot inspect HTTPS URLs, third-party DoH clients, or already-cached DNS answers.
  */
 class DnsGuardService : VpnService() {
@@ -218,7 +218,7 @@ class DnsGuardService : VpnService() {
 
     private fun dohLookup(dns: ByteArray): ByteArray? {
         return try {
-            val conn = URL("https://cloudflare-dns.com/dns-query").openConnection() as HttpURLConnection
+            val conn = URL("https://security.cloudflare-dns.com/dns-query").openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 3500
             conn.readTimeout = 3500
