@@ -210,7 +210,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     }
     Scaffold(containerColor = ink, bottomBar = {
         Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            listOf(0 to "Home", 4 to "DNS Guard", 1 to "Links", 6 to "Scams", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 9 to "Account", 10 to "Premium", 2 to "History", 3 to "Settings").forEach { (i, name) ->
+            listOf(0 to "Home", 4 to "DNS Guard", 11 to "Webpage", 12 to "DNS Audit", 1 to "Links", 6 to "Scams", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 9 to "Account", 10 to "Premium", 2 to "History", 3 to "Settings").forEach { (i, name) ->
                 Text(name, modifier = Modifier.clickable { tab = i }.padding(10.dp),
                     color = if (tab == i) mint else muted, fontSize = 13.sp)
             }
@@ -239,6 +239,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     }
                     Section("Your security toolkit", "Analyze links shared from other apps or encoded in QR codes.")
                     Text("Saved security checks: " + savedHistory.size, color = mint)
+                    OutlinedButton(onClick = { tab = 11 }) { Text("INSPECT A WEBPAGE'S HTML") }
+                    OutlinedButton(onClick = { tab = 12 }) { Text("AUDIT ENCRYPTED DNS EXPOSURE") }
                     OutlinedButton(onClick = { tab = 6 }) { Text("INVESTIGATE A SCAM MESSAGE") }
                     OutlinedButton(onClick = { tab = 7 }) { Text("CHECK DEVICE SECURITY") }
                     OutlinedButton(onClick = { tab = 8 }) { Text("MONITOR VERIFIED EMAIL BREACHES") }
@@ -301,9 +303,15 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                             Text(if (guardRunning) "ACTIVE • " + blocks + " blocked • " + forwarded + " forwarded"
                                 else "NOT RUNNING",
                                 color = if (guardRunning) mint else amber, fontWeight = FontWeight.Bold)
-                            Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare Families over HTTPS for malware/phishing filtering. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
+                            Text("This Android VPN handles only IPv4 UDP DNS packets. Ordinary DNS " +
+                                "requests are forwarded securely to Cloudflare Families. Other apps' DNS-over-HTTPS/TLS " +
+                                "requests can bypass this filter. The separate opt-in Webpage Inspector checks " +
+                                "public HTML, not other apps' encrypted traffic. Android allows one VPN at a time.",
                                 color = muted, fontSize = 13.sp)
                             DnsGuardDiagnostics.privateDnsWarning(context)?.let { Note(it, amber) }
+                            OutlinedButton(onClick = { tab = 12 }, modifier = Modifier.fillMaxWidth()) {
+                                Text("AUDIT ENCRYPTED DNS BYPASS")
+                            }
                             Text("VPN status: " + vpnStatus, color = muted, fontSize = 13.sp)
                             if (failures > 0) Text("Upstream resolver errors: " + failures, color = amber, fontSize = 12.sp)
                             OutlinedButton(onClick = {
@@ -389,6 +397,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                 8 -> BreachScreen(endpoint)
                 9 -> AccountScreen(endpoint, onVerifyEmail = { tab = 8 })
                 10 -> PremiumScreen(endpoint, onVerifyEmail = { tab = 8 })
+                11 -> WebpageInspectorScreen(initialUrl = link)
+                12 -> EncryptedDnsAuditScreen()
                 3 -> {
                     Section("Settings", "Connect your trusted HTTPS GhostForge scanner server.")
                     OutlinedTextField(value = endpointDraft, onValueChange = { endpointDraft = it },
@@ -402,7 +412,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.4.1 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.5.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
