@@ -1,11 +1,17 @@
 package com.ghostforge.app
 
 import android.content.Intent
+import android.app.Activity
+import android.net.VpnService
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.delay
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -70,6 +76,38 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var result by remember { mutableStateOf<ScanFinding?>(null) }
     val history = remember { mutableStateListOf<ScanFinding>() }
     val scope = rememberCoroutineScope()
+    var consent by rememberSaveable { mutableStateOf(false) }
+    var blockedDomains by rememberSaveable { mutableStateOf(prefs.getString("blocked_domains", "") ?: "") }
+    var guardRunning by remember { mutableStateOf(DnsGuardService.running) }
+    var blocks by remember { mutableIntStateOf(DnsGuardService.blockedCount) }
+    var apkReport by remember { mutableStateOf<ApkReport?>(null) }
+    var apkError by remember { mutableStateOf("") }
+    var apkBusy by remember { mutableStateOf(false) }
+    val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            context.startForegroundService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START))
+        } else error = "Android VPN permission was not granted."
+    }
+    val apkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            apkBusy = true; apkError = ""; apkReport = null
+            scope.launch {
+                ApkInspector.inspect(context, uri, endpoint).fold(
+                    onSuccess = { apkReport = it },
+                    onFailure = { apkError = it.message ?: "APK inspection failed." }
+                )
+                apkBusy = false
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            guardRunning = DnsGuardService.running
+            blocks = DnsGuardService.blockedCount
+            delay(1200L)
+        }
+    }
+
     LaunchedEffect(shared) {
         if (shared.isNotBlank()) { link = shared; tab = 1 }
     }
@@ -89,8 +127,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
         }
     }
     Scaffold(containerColor = ink, bottomBar = {
-        Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().padding(10.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf("Home", "Scanner", "History", "Settings").forEachIndexed { i, name ->
+        Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            listOf(0 to "Home", 1 to "Links", 4 to "DNS Guard", 5 to "APK Scan", 2 to "History", 3 to "Settings").forEach { (i, name) ->
                 Text(name, modifier = Modifier.clickable { tab = i }.padding(10.dp),
                     color = if (tab == i) mint else muted, fontSize = 13.sp)
             }
@@ -113,13 +151,13 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("◈ SECURITY STATUS", color = mint, fontSize = 13.sp)
                             Text("Ready to investigate", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            Text("Manual scanning only. No VPN or background protection is active.", color = muted)
+                            Text(if (guardRunning) "DNS Guard is running. DNS filtering is active for matching domains." else "Manual scanning works; DNS Guard is off.", color = muted)
                             Button(onClick = { tab = 1 }, modifier = Modifier.fillMaxWidth()) { Text("SCAN A SUSPICIOUS LINK") }
                         }
                     }
                     Section("Your security toolkit", "Analyze links shared from other apps or encoded in QR codes.")
                     Text("Links scanned this session: " + history.size, color = mint)
-                    Text("This prototype is not an antivirus or a replacement for Google Play Protect.", color = amber)
+                    Text("Local DNS Guard can only block listed domains; it does not inspect encrypted URLs or replace Google Play Protect.", color = amber)
                 }
                 1 -> {
                     Section("Link investigator", "Check a suspicious URL before opening it.")
@@ -165,6 +203,71 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     }
                     TextButton(onClick = { history.clear() }) { Text("Clear history") }
                 }
+
+                4 -> {
+                    Section("DNS Guard", "Optional background blocking of domains on your blocklist and configured GhostForge feed.")
+                    Surface(color = panel, shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(if (guardRunning) "ACTIVE • $blocks DNS queries blocked this session" else "NOT RUNNING",
+                                color = if (guardRunning) mint else amber, fontWeight = FontWeight.Bold)
+                            Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare Families over HTTPS for malware/phishing filtering. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
+                                color = muted, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = consent, onCheckedChange = { consent = it })
+                                Text("I understand and consent to the VPN and Cloudflare DNS handling.", color = Color.White, fontSize = 12.sp)
+                            }
+                            if (!guardRunning) Button(onClick = {
+                                error = ""
+                                val permission = VpnService.prepare(context)
+                                if (permission != null) vpnPermission.launch(permission)
+                                else context.startForegroundService(
+                                    Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START)
+                                )
+                            }, enabled = consent, modifier = Modifier.fillMaxWidth()) { Text("START DNS GUARD") }
+                            else OutlinedButton(onClick = {
+                                context.startService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.STOP))
+                            }, modifier = Modifier.fillMaxWidth()) { Text("STOP DNS GUARD") }
+                            if (DnsGuardService.lastError.isNotBlank()) Note(DnsGuardService.lastError, danger)
+                        }
+                    }
+                    Section("Custom blocked domains", "One domain per line. For example: malware.test (safe test-only domain).")
+                    OutlinedTextField(value = blockedDomains, onValueChange = { blockedDomains = it },
+                        label = { Text("Blocklist") }, minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(onClick = {
+                        prefs.edit().putString("blocked_domains", blockedDomains).apply()
+                        error = "Saved. Stop and restart DNS Guard to apply changes."
+                    }) { Text("SAVE BLOCKLIST") }
+                    if (error.isNotBlank()) Note(error, muted)
+                    Note("Cloudflare Families also filters known malware/phishing domains. malware.test is a demonstration rule; configure a vetted backend feed for additional coverage. Failure to resolve DNS can also indicate a network issue, not a confirmed threat.", amber)
+                }
+                5 -> {
+                    Section("APK File Inspector", "Inspect an APK you choose. Files are not uploaded.")
+                    Surface(color = panel, shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Checks archive format, reads package permissions, calculates SHA-256 and optionally asks your backend whether the hash matches a known-malicious file.",
+                                color = muted)
+                            Button(onClick = { apkPicker.launch(arrayOf("*/*")) },
+                                enabled = !apkBusy, modifier = Modifier.fillMaxWidth()) { Text("CHOOSE APK TO INSPECT") }
+                            if (apkBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                            if (apkError.isNotBlank()) Note(apkError, danger)
+                        }
+                    }
+                    apkReport?.let { report ->
+                        Surface(color = panel, shape = RoundedCornerShape(16.dp)) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(if (report.reputation == "known_malicious") "KNOWN MALICIOUS HASH"
+                                    else "UNKNOWN REPUTATION", fontWeight = FontWeight.Bold,
+                                    color = if (report.reputation == "known_malicious") danger else amber)
+                                Text("Package: " + report.packageId, color = Color.White)
+                                Text("Version: " + report.version, color = muted)
+                                Text("SHA-256: " + report.sha256, color = muted, fontSize = 11.sp)
+                                Text(report.details, color = Color.White)
+                                if (report.risks.isNotEmpty()) report.risks.forEach { Text("• " + it, color = amber) }
+                                else Text("No listed risky permissions found. This does not mean the APK is safe.", color = muted)
+                            }
+                        }
+                    }
+                }
                 3 -> {
                     Section("Settings", "Connect your trusted HTTPS GhostForge scanner server.")
                     OutlinedTextField(value = endpointDraft, onValueChange = { endpointDraft = it },
@@ -178,7 +281,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.1.0 • No background web monitoring, malware scanning, account system, or paid subscriptions yet.", amber)
+                    Note("Version 0.2.0 • DNS filtering is opt-in and only blocks listed domains. APK inspection is heuristic/hash-based, not complete malware detection. Accounts and subscriptions are not built.", amber)
                 }
             }
         }
