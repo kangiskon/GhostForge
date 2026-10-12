@@ -116,6 +116,13 @@ class DnsGuardService : VpnService() {
                 val descriptor = Builder()
                     .setSession("GhostForge DNS Guard")
                     .setMtu(1500)
+                    // Android's TUN file descriptor is non-blocking by default.
+                    // Our FileInputStream packet reader requires a blocking descriptor;
+                    // otherwise EAGAIN / early EOF tears down the VPN immediately.
+                    .setBlocking(true)
+                    // The beta filters IPv4 DNS only. Allow IPv6 traffic to use the
+                    // underlying network rather than accidentally blocking IPv6.
+                    .allowFamily(android.system.OsConstants.AF_INET6)
                     .addAddress("10.117.0.2", 24)
                     .addDnsServer("10.117.0.1")
                     .addRoute("10.117.0.1", 32)
@@ -181,8 +188,21 @@ class DnsGuardService : VpnService() {
         val output = FileOutputStream(fd.fileDescriptor)
         val packet = ByteArray(4096)
         while (active.get()) {
-            val size = try { input.read(packet) } catch (_: Exception) { break }
-            if (size <= 0) break
+            val size = try { input.read(packet) } catch (ex: Exception) {
+                if (active.get()) {
+                    lastError = "VPN packet reader failed: " + ex.javaClass.simpleName +
+                        ": " + (ex.message ?: "unable to read tunnel")
+                    reportStatus("VPN packet reader stopped unexpectedly")
+                }
+                break
+            }
+            if (size <= 0) {
+                if (active.get()) {
+                    lastError = "VPN tunnel closed before DNS packets could be processed."
+                    reportStatus("VPN tunnel closed unexpectedly")
+                }
+                break
+            }
             val copy = packet.copyOf(size)
             if (!slots.tryAcquire()) continue
             workers.execute {
