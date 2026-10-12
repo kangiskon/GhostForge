@@ -47,6 +47,12 @@ class DnsGuardService : VpnService() {
     @Volatile private var domains: Set<String> = setOf("malware.test")
     private val writeLock = Any()
 
+    private fun reportStatus(message: String) {
+        lastDiagnostic = message
+        getSharedPreferences("ghostforge_settings", MODE_PRIVATE).edit()
+            .putString("vpn_status", message).apply()
+    }
+
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannel("ghostforge_dns", "GhostForge DNS Guard", NotificationManager.IMPORTANCE_LOW)
@@ -55,13 +61,14 @@ class DnsGuardService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) {
+            reportStatus("Stopped by user")
             stopGuard()
             return START_NOT_STICKY
         }
         if (intent?.action != START) return START_NOT_STICKY
         if (!active.compareAndSet(false, true)) return START_STICKY
         lastError = ""
-        lastDiagnostic = "Checking upstream encrypted DNS"
+        reportStatus("Service started. Checking upstream DNS…")
         val note = Notification.Builder(this, "ghostforge_dns")
             .setContentTitle("GhostForge DNS Guard")
             .setContentText("Starting encrypted DNS protection")
@@ -84,17 +91,27 @@ class DnsGuardService : VpnService() {
             )
             .setOngoing(true)
             .build()
-        startForeground(1007, note)
+        try {
+            startForeground(1007, note)
+        } catch (ex: Exception) {
+            lastError = "Foreground notification rejected (" + ex.javaClass.simpleName + "): " +
+                (ex.message ?: "check app permissions")
+            reportStatus("VPN cannot start. Check notification/foreground-service permissions.")
+            active.set(false)
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+        reportStatus("Foreground service running. Waiting for DNS preflight…")
         workers.execute {
             try {
                 // Do not hijack DNS if the encrypted resolver cannot be reached.
                 val healthError = DnsGuardDiagnostics.checkResolver()
                 if (healthError != null) {
                     lastError = healthError
-                    lastDiagnostic = "Upstream DNS unavailable"
+                    reportStatus("Upstream DNS unavailable: " + healthError)
                     return@execute
                 }
-                lastDiagnostic = "Upstream DNS reachable"
+                reportStatus("Upstream DNS reachable; creating VPN tunnel…")
                 loadDomains()
                 val descriptor = Builder()
                     .setSession("GhostForge DNS Guard")
@@ -107,22 +124,23 @@ class DnsGuardService : VpnService() {
                     .addDisallowedApplication(packageName)
                     .establish()
                 if (descriptor == null) {
-                    lastError = "Android refused to establish the DNS VPN."
+                    lastError = "Android refused to establish the DNS VPN. Check VPN permission and other VPN apps."
+                    reportStatus("Android refused to establish VPN tunnel.")
                     stopGuard()
                     return@execute
                 }
                 tun = descriptor
                 running = true
-                lastDiagnostic = "VPN established; awaiting DNS queries"
+                reportStatus("VPN tunnel established. Awaiting DNS queries…")
                 processPackets(descriptor)
             } catch (ex: Exception) {
                 lastError = ex.javaClass.simpleName + ": " + (ex.message ?: "Unable to start VPN")
-                lastDiagnostic = "DNS Guard stopped after a service error"
+                reportStatus("VPN stopped with error: " + lastError)
             } finally {
                 stopGuard()
             }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun loadDomains() {
@@ -204,7 +222,7 @@ class DnsGuardService : VpnService() {
             question == null -> dnsError(request, 1)
             isBlocked(question) -> {
                 blockedCount++
-                lastDiagnostic = "Blocked domain matched local blocklist"
+                reportStatus("Blocked a locally listed domain")
                 dnsError(request, 3)
             }
             else -> dohLookup(request) ?: dnsError(request, 2)
@@ -284,7 +302,7 @@ class DnsGuardService : VpnService() {
                 conn.outputStream.use { it.write(dns) }
                 if (conn.responseCode != 200) {
                     resolverErrors++
-                    lastDiagnostic = "Encrypted DNS returned HTTP " + conn.responseCode
+                    reportStatus("Encrypted DNS returned HTTP " + conn.responseCode)
                     null
                 } else {
                     val answer = conn.inputStream.use { input ->
@@ -300,18 +318,18 @@ class DnsGuardService : VpnService() {
                     if (answer.size < 12 || answer[0] != dns[0] || answer[1] != dns[1] ||
                         (answer[2].toInt() and 128) == 0) {
                         resolverErrors++
-                        lastDiagnostic = "Invalid encrypted DNS response"
+                        reportStatus("Invalid encrypted DNS response")
                         null
                     } else {
                         forwardedCount++
-                        lastDiagnostic = "DNS lookup forwarded successfully"
+                        reportStatus("DNS query forwarded successfully")
                         answer
                     }
                 }
             } finally { conn.disconnect() }
         } catch (ex: Exception) {
             resolverErrors++
-            lastDiagnostic = "DNS forwarding failed: " + ex.javaClass.simpleName
+            reportStatus("DNS forwarding failed: " + ex.javaClass.simpleName)
             null
         }
     }

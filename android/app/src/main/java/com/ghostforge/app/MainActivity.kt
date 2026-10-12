@@ -2,6 +2,10 @@ package com.ghostforge.app
 
 import android.content.Intent
 import android.app.Activity
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.net.VpnService
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +83,12 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var consent by rememberSaveable { mutableStateOf(false) }
     var blockedDomains by rememberSaveable { mutableStateOf(prefs.getString("blocked_domains", "") ?: "") }
     var guardRunning by remember { mutableStateOf(DnsGuardService.running) }
+    var vpnStatus by remember { mutableStateOf(
+        prefs.getString("vpn_status", "Idle. Tap Start to request Android VPN access.").orEmpty()
+    ) }
+    var vpnFailure by remember { mutableStateOf(DnsGuardService.lastError) }
+    var startupMessage by remember { mutableStateOf("") }
+    var startupPending by remember { mutableStateOf(false) }
     var blocks by remember { mutableIntStateOf(DnsGuardService.blockedCount) }
     var forwarded by remember { mutableIntStateOf(DnsGuardService.forwardedCount) }
     var failures by remember { mutableIntStateOf(DnsGuardService.resolverErrors) }
@@ -87,14 +97,49 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var apkReport by remember { mutableStateOf<ApkReport?>(null) }
     var apkError by remember { mutableStateOf("") }
     var apkBusy by remember { mutableStateOf(false) }
+    fun launchService() {
+        startupPending = true
+        startupMessage = "Android VPN permission granted. Starting DNS Guard service…"
+        try {
+            context.startForegroundService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START))
+        } catch (ex: Exception) {
+            startupPending = false
+            startupMessage = "Unable to start VPN foreground service: " + ex.javaClass.simpleName +
+                ": " + (ex.message ?: "Unknown Android error")
+        }
+    }
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                context.startForegroundService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START))
-            } catch (ex: Exception) {
-                error = "Cannot start DNS Guard: " + (ex.message ?: ex.javaClass.simpleName)
-            }
-        } else error = "Android VPN permission was not granted."
+        val authorized = try { VpnService.prepare(context) == null } catch (_: Exception) { false }
+        if (result.resultCode == Activity.RESULT_OK && authorized) {
+            launchService()
+        } else if (authorized) {
+            // Some OEMs may not deliver the expected result code, but VpnService.prepare
+            // is authoritative about whether authorization is now present.
+            launchService()
+        } else {
+            startupPending = false
+            startupMessage = "VPN permission was not granted. Open the DNS Guard tab and tap Start again."
+        }
+    }
+    fun requestVpnPermission() {
+        startupMessage = "Requesting Android VPN permission…"
+        try {
+            val permission = VpnService.prepare(context)
+            if (permission != null) {
+                startupPending = false
+                vpnPermission.launch(permission)
+            } else launchService()
+        } catch (ex: Exception) {
+            startupPending = false
+            startupMessage = "Unable to request VPN approval: " +
+                ex.javaClass.simpleName + ": " + (ex.message ?: "Unknown Android error")
+        }
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            startupMessage = "Notifications are disabled. The ghost icon may not appear; continuing VPN setup…"
+        }
+        requestVpnPermission()
     }
     val apkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -114,7 +159,21 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
             blocks = DnsGuardService.blockedCount
             forwarded = DnsGuardService.forwardedCount
             failures = DnsGuardService.resolverErrors
+            vpnFailure = DnsGuardService.lastError
+            vpnStatus = prefs.getString("vpn_status", DnsGuardService.lastDiagnostic)
+                ?: DnsGuardService.lastDiagnostic
+            if (guardRunning || vpnFailure.isNotBlank()) startupPending = false
             delay(1200L)
+        }
+    }
+
+    LaunchedEffect(startupPending) {
+        if (startupPending) {
+            delay(18000L)
+            if (startupPending && !DnsGuardService.running) {
+                startupPending = false
+                startupMessage = "VPN startup timed out. Check the status or error shown below."
+            }
         }
     }
 
@@ -230,7 +289,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                             Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare Families over HTTPS for malware/phishing filtering. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
                                 color = muted, fontSize = 13.sp)
                             DnsGuardDiagnostics.privateDnsWarning(context)?.let { Note(it, amber) }
-                            Text("Status: " + DnsGuardService.lastDiagnostic, color = muted, fontSize = 12.sp)
+                            Text("VPN status: " + vpnStatus, color = muted, fontSize = 13.sp)
                             if (failures > 0) Text("Upstream resolver errors: " + failures, color = amber, fontSize = 12.sp)
                             OutlinedButton(onClick = {
                                 resolverCheck = ""
@@ -249,21 +308,27 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                                 Text("I understand and consent to the VPN and Cloudflare DNS handling.", color = Color.White, fontSize = 12.sp)
                             }
                             if (!guardRunning) Button(onClick = {
-                                error = ""
-                                try {
-                                    val permission = VpnService.prepare(context)
-                                    if (permission != null) vpnPermission.launch(permission)
-                                    else context.startForegroundService(
-                                        Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START)
-                                    )
-                                } catch (ex: Exception) {
-                                    error = "VPN startup failed: " + (ex.message ?: ex.javaClass.simpleName)
+                                startupMessage = "Start button tapped."
+                                if (Build.VERSION.SDK_INT >= 33 &&
+                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                                    PackageManager.PERMISSION_GRANTED) {
+                                    startupMessage = "Allow notifications to display the ghost in the status bar."
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    requestVpnPermission()
                                 }
-                            }, enabled = consent, modifier = Modifier.fillMaxWidth()) { Text("START DNS GUARD") }
+                            }, enabled = consent && !startupPending, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (startupPending) "STARTING…" else "START DNS GUARD")
+                            }
                             else OutlinedButton(onClick = {
                                 context.startService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.STOP))
                             }, modifier = Modifier.fillMaxWidth()) { Text("STOP DNS GUARD") }
-                            if (DnsGuardService.lastError.isNotBlank()) Note(DnsGuardService.lastError, danger)
+                            if (startupPending) LinearProgressIndicator(Modifier.fillMaxWidth())
+                            if (startupMessage.isNotBlank()) Note(startupMessage, muted)
+                            if (vpnFailure.isNotBlank()) Note("VPN error: " + vpnFailure, danger)
+                            Text("If no ghost appears: Android Settings → Apps → GhostForge → Notifications → Allow. " +
+                                "Also confirm GhostForge is listed under Settings → Connections → More connection settings → VPN.",
+                                color = muted, fontSize = 12.sp)
                         }
                     }
                     Section("Custom blocked domains", "One domain per line. For example: malware.test (safe test-only domain).")
@@ -320,7 +385,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.3.1 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.3.2 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
