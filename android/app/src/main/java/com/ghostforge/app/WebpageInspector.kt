@@ -61,12 +61,14 @@ object WebpageInspector {
         return false
     }
 
-    private val safeDns = Dns { hostname ->
-        val addresses = Dns.SYSTEM.lookup(hostname)
-        if (addresses.isEmpty() || addresses.any { !isPublicAddress(it) }) {
-            throw IOException("This host resolves to a private or restricted address and cannot be inspected.")
+    private val safeDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val addresses = Dns.SYSTEM.lookup(hostname)
+            if (addresses.isEmpty() || addresses.any { !isPublicAddress(it) }) {
+                throw IOException("This host resolves to a private or restricted address and cannot be inspected.")
+            }
+            return addresses
         }
-        addresses
     }
 
     private val client = OkHttpClient.Builder()
