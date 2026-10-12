@@ -1,27 +1,11 @@
-# GhostForge v0.3.1 — DNS Guard repair and ghost status icon
+# GhostForge v0.3.2 VPN startup and ghost notification
 
-The in-progress DNS beta now performs a direct HTTPS health check against the configured
-Cloudflare Families DNS-over-HTTPS resolver *before* establishing the Android VPN.
-If DNS is unreachable it reports the reason instead of activating a broken connection.
+The previous DNS screen silently hid startup failures beneath the lower blocklist fields. The new screen displays status and startup errors next to the Start button, requests Android notification permission (required for the ghost status notification on Android 13+), requests Android VPN authorization, and checks preparation after the system prompt. The foreground service persists its progress and failures to app settings for debugging even after service shutdown. It also times out the startup UI if no VPN tunnel appears within 18 seconds.
 
-The VPN page provides:
-- A **Check encrypted DNS connection** button to test upstream availability independently of VPN routing.
-- Status text for VPN establishment, successful forwarded DNS queries, blocked queries, and resolver errors.
-- A warning if Android Private DNS is set to a fixed provider and might bypass local filtering.
-- Guidance to stop the VPN immediately if websites cannot load.
+Tap **Start DNS Guard**, approve notifications and the Android VPN dialog. Check **VPN status** and the **VPN error** message. If the VPN is connected but DNS is broken, turn it off from GhostForge or Samsung Settings immediately. The separate Android VPN/key indicator is system controlled. The ghost is only for the GhostForge notification, which may be hidden by notification settings or the status-bar icon limit.
 
-The GhostForge VPN foreground notification now uses a **white ghost** icon with
-transparent background. Android's separate system-controlled VPN/key icon **cannot**
-be replaced by an app. The notification has a tap-to-open shortcut and a Stop action.
+The DNS packet-filter prototype still requires physical device validation. Successful compilation is not proof the VPN routes DNS queries on all Samsung Android versions.
 
-## What is not yet guaranteed
+## Essential VPN stability correction
 
-The VPN is a limited proof of concept. It handles IPv4 UDP DNS requests using the Android
-virtual DNS server and Cloudflare Families DNS-over-HTTPS, not TCP DNS, IPv6, app-specific
-DoH/DoT or encrypted web content. The upstream test **does not** test end-to-end Android
-VPN routing. Real Galaxy Tab S9+ testing is required before claiming reliable protection.
-
-If it prevents browsing, turn DNS Guard off in GhostForge or disconnect via Samsung
-Settings > Connections > More connection settings > VPN. Existing network connectivity
-should return. The notification ghost may be hidden by Android's notification/status bar
-configuration even while its notification is active.
+Android VPN TUN descriptors are **non-blocking by default**. The original service used `FileInputStream.read()` as a blocking packet reader, so an empty incoming queue could be treated as an end-of-file and the service would close itself. The builder now calls `setBlocking(true)` and records unexpected read failures. Since this beta only filters IPv4 UDP DNS, it explicitly allows IPv6 traffic to bypass rather than blocking IPv6 connectivity. DNS-over-TLS and third-party DNS-over-HTTPS can still bypass filtering.
