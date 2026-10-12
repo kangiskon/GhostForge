@@ -1,0 +1,23 @@
+services:
+  scanner:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8088:8088"
+    volumes:
+      - ghostforge_state:/data
+    environment:
+      GHOSTFORGE_STATE_DB: /data/ghostforge.db
+      GHOSTFORGE_AUTH_SECRET: "${GHOSTFORGE_AUTH_SECRET:-}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      HIBP_API_KEY: "${HIBP_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_SCAM_MODEL: "${OPENAI_SCAM_MODEL:-gpt-5-mini}"
+      WEB_RISK_API_KEY: "${WEB_RISK_API_KEY:-}"
+    restart: unless-stopped
+
+volumes:
+  ghostforge_state:

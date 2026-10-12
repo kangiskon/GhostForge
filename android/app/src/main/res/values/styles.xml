@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.GhostForge" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#08101D</item>
+        <item name="android:navigationBarColor">#08101D</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
