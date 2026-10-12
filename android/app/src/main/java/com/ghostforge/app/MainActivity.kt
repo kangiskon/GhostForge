@@ -189,7 +189,12 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
         if (text.isBlank()) { error = "Paste a website link."; tab = 1; return }
         error = ""; result = null; busy = true; tab = 1
         scope.launch {
-            ScannerApi.scan(endpoint, text).fold(
+            val useRemote = endpoint.startsWith("https://") && !endpoint.endsWith(".invalid")
+            val scanned = if (useRemote) {
+                val remote = ScannerApi.scan(endpoint, text)
+                if (remote.isSuccess) remote else OfflineScanner.link(text)
+            } else OfflineScanner.link(text)
+            scanned.fold(
                 onSuccess = { item ->
                     result = item; history.add(0, item)
                     if (history.size > 20) history.removeAt(history.lastIndex)
@@ -397,7 +402,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.4.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.4.1 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
