@@ -11,8 +11,8 @@ android {
         applicationId = "com.ghostforge.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.1"
+        versionCode = 8
+        versionName = "0.5.0"
     }
     buildTypes {
         release {
@@ -40,5 +40,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.android.billingclient:billing-ktx:9.1.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jsoup:jsoup:1.23.2")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

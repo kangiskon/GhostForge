@@ -6,11 +6,13 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.4.1
+## Features in v0.5.0
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
 | Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
+| Webpage Inspector | Explicit opt-in HTTPS HTML fetch, no scripts, local parsing of forms, redirects, misleading links and scam wording | Only first static HTML (192 KiB max), no cookies, no redirects; does not inspect other apps |
+| Encrypted DNS Audit | Shows system Private DNS settings and documents DoH/DoT bypass limitations | Cannot decrypt, detect all apps' encrypted DNS, or inspect other apps' browsing |
 | DNS Guard | Optional DNS-only local VPN; Cloudflare Families anti-malware/phishing DNS plus custom blocklist | Not HTTPS-content interception; other VPN/Private DNS conflicts possible |
 | APK inspector | User-selected APK hashes, manifest permission warnings, vetted malicious hash matching | Heuristics and known hashes aren't comprehensive antivirus |
 | Scam investigator | Offline warning-sign analysis, screenshots and optional AI-generated guidance | Live AI requires a configured backend; never claims safe |
@@ -35,3 +37,8 @@ This is **not** a production Guardio equivalent. Real malware engine validation,
 Backend CI tests and Gradle debug APK compilation run on GitHub Actions for every push and pull request.
 
 **Offline mode (v0.4.1):** GhostForge can assess obvious warning signs in links and pasted scam messages even without an HTTPS backend. Offline detection performs **no threat-feed lookup** and never declares a link or message safe. If a configured remote scanner fails, the app falls back to the same limited local checks.
+
+### Webpage inspection privacy (v0.5.0)
+Webpage inspection is disabled until the user checks an explicit consent box. The phone makes **one HTTPS request directly to the chosen public website**: the website may log the source IP and requested path. No JavaScript executes, no redirects are followed, no cookies are attached, no authentication is attempted, and HTML is not uploaded to GhostForge servers. Local/private IP addresses and hostnames are excluded at URL validation and connection-time DNS lookup. Only a limited initial HTML response (192 KiB) is read; images and scripts aren't fetched. Webpage results aren't stored in the history database. Never use this to scan private URLs, password-reset links, or pages that could trigger one-time actions.
+
+Encrypted DNS Audit reads Android's Private DNS setting and displays known protection gaps; it does not intercept other apps' encrypted DNS queries. A tested full-tunnel VPN would be necessary for even limited endpoint metadata monitoring and cannot passively decrypt third-party HTTPS/DoH without the relevant keys and consent. Nothing Phone testing remains pending.
