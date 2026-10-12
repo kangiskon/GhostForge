@@ -11,8 +11,8 @@ android {
         applicationId = "com.ghostforge.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
     buildTypes {
         release {
@@ -37,5 +37,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
