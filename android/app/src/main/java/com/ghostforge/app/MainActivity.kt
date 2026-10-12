@@ -80,12 +80,20 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var blockedDomains by rememberSaveable { mutableStateOf(prefs.getString("blocked_domains", "") ?: "") }
     var guardRunning by remember { mutableStateOf(DnsGuardService.running) }
     var blocks by remember { mutableIntStateOf(DnsGuardService.blockedCount) }
+    var forwarded by remember { mutableIntStateOf(DnsGuardService.forwardedCount) }
+    var failures by remember { mutableIntStateOf(DnsGuardService.resolverErrors) }
+    var checkingResolver by remember { mutableStateOf(false) }
+    var resolverCheck by remember { mutableStateOf("") }
     var apkReport by remember { mutableStateOf<ApkReport?>(null) }
     var apkError by remember { mutableStateOf("") }
     var apkBusy by remember { mutableStateOf(false) }
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            context.startForegroundService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START))
+            try {
+                context.startForegroundService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START))
+            } catch (ex: Exception) {
+                error = "Cannot start DNS Guard: " + (ex.message ?: ex.javaClass.simpleName)
+            }
         } else error = "Android VPN permission was not granted."
     }
     val apkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -104,6 +112,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
         while (true) {
             guardRunning = DnsGuardService.running
             blocks = DnsGuardService.blockedCount
+            forwarded = DnsGuardService.forwardedCount
+            failures = DnsGuardService.resolverErrors
             delay(1200L)
         }
     }
@@ -214,21 +224,41 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     Section("DNS Guard", "Optional background blocking of domains on your blocklist and configured GhostForge feed.")
                     Surface(color = panel, shape = RoundedCornerShape(16.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(if (guardRunning) "ACTIVE • $blocks DNS queries blocked this session" else "NOT RUNNING",
+                            Text(if (guardRunning) "ACTIVE • " + blocks + " blocked • " + forwarded + " forwarded"
+                                else "NOT RUNNING",
                                 color = if (guardRunning) mint else amber, fontWeight = FontWeight.Bold)
                             Text("This creates an Android VPN that handles only DNS requests. DNS questions not blocked locally are sent to Cloudflare Families over HTTPS for malware/phishing filtering. GhostForge does not inspect webpage contents, and some apps' encrypted DNS traffic can bypass filtering. Android allows one VPN at a time. Turning this on can interfere with another VPN or some networks.",
                                 color = muted, fontSize = 13.sp)
+                            DnsGuardDiagnostics.privateDnsWarning(context)?.let { Note(it, amber) }
+                            Text("Status: " + DnsGuardService.lastDiagnostic, color = muted, fontSize = 12.sp)
+                            if (failures > 0) Text("Upstream resolver errors: " + failures, color = amber, fontSize = 12.sp)
+                            OutlinedButton(onClick = {
+                                resolverCheck = ""
+                                checkingResolver = true
+                                scope.launch {
+                                    resolverCheck = DnsGuardDiagnostics.checkConnection()
+                                    checkingResolver = false
+                                }
+                            }, enabled = !checkingResolver, modifier = Modifier.fillMaxWidth()) {
+                                Text("CHECK ENCRYPTED DNS CONNECTION")
+                            }
+                            if (checkingResolver) LinearProgressIndicator(Modifier.fillMaxWidth())
+                            if (resolverCheck.isNotBlank()) Note(resolverCheck, muted)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = consent, onCheckedChange = { consent = it })
                                 Text("I understand and consent to the VPN and Cloudflare DNS handling.", color = Color.White, fontSize = 12.sp)
                             }
                             if (!guardRunning) Button(onClick = {
                                 error = ""
-                                val permission = VpnService.prepare(context)
-                                if (permission != null) vpnPermission.launch(permission)
-                                else context.startForegroundService(
-                                    Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START)
-                                )
+                                try {
+                                    val permission = VpnService.prepare(context)
+                                    if (permission != null) vpnPermission.launch(permission)
+                                    else context.startForegroundService(
+                                        Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.START)
+                                    )
+                                } catch (ex: Exception) {
+                                    error = "VPN startup failed: " + (ex.message ?: ex.javaClass.simpleName)
+                                }
                             }, enabled = consent, modifier = Modifier.fillMaxWidth()) { Text("START DNS GUARD") }
                             else OutlinedButton(onClick = {
                                 context.startService(Intent(context, DnsGuardService::class.java).setAction(DnsGuardService.STOP))
@@ -244,7 +274,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         error = "Saved. Stop and restart DNS Guard to apply changes."
                     }) { Text("SAVE BLOCKLIST") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Cloudflare Families also filters known malware/phishing domains. malware.test is a demonstration rule; configure a vetted backend feed for additional coverage. Failure to resolve DNS can also indicate a network issue, not a confirmed threat.", amber)
+                    Note("If VPN shows connected but websites stop loading, turn DNS Guard off immediately. Only IPv4 UDP DNS is intercepted; Android Private DNS, third-party encrypted DNS, IPv6 and DNS-over-TCP can bypass this beta. Test on Wi-Fi and mobile data before relying on it.", amber)
                 }
                 5 -> {
                     Section("APK File Inspector", "Inspect an APK you choose. Files are not uploaded.")
@@ -290,7 +320,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.3.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.3.1 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
