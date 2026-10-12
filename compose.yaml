@@ -1,0 +1,8 @@
+services:
+  scanner:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8088:8088"
+    environment:
+      WEB_RISK_API_KEY: "${WEB_RISK_API_KEY:-}"
+    restart: unless-stopped
