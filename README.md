@@ -1,44 +1,32 @@
 # GhostForge
 
-Android security app prototype: a manual link investigator with QR scanning, Share-to-scan, optional Google Web Risk-backed reputation checks, and a private Python FastAPI backend.
+Android-first phishing, scam and breach-awareness security suite (beta).
 
-**This is a development prototype, not an antivirus or always-on web protection.** It never claims an unverified website is safe.
+## Download an APK using only your Galaxy Tab S9+
 
-## Build on Galaxy Tab S9+
+Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-1. Open **Actions** → **Build GhostForge Android APK** in this repository.
-2. Open the latest run, then **Artifacts** → **GhostForge-Debug-APK**.
-3. Extract the downloaded ZIP and install the APK on the Galaxy Tab S9+.
+## Features in v0.3
 
-Each push to `main` triggers a new cloud APK build. A manual **Run workflow** option is also included. No computer or local Android SDK required.
+| Area | Functionality | Limits |
+| --- | --- | --- |
+| Link investigator | URL inspection, known-threat feeds, manual link sharing and QR scans | Google Web Risk needs API key and hosted backend |
+| DNS Guard | Optional DNS-only local VPN; Cloudflare Families anti-malware/phishing DNS plus custom blocklist | Not HTTPS-content interception; other VPN/Private DNS conflicts possible |
+| APK inspector | User-selected APK hashes, manifest permission warnings, vetted malicious hash matching | Heuristics and known hashes aren't comprehensive antivirus |
+| Scam investigator | Rule-based explanations and opt-in AI-generated guidance | Hosted API and optional AI key required; never claims 'safe' |
+| Screenshot checks | On-device OCR of an explicitly chosen screenshot | User must review and choose to submit extracted text |
+| Device audit | Screen lock, security-patch age and USB debugging checks | Cannot attest Play Protect or detect every compromise |
+| Breach monitoring | Verified email address, licensed HIBP account check, scheduled opt-in notification checks | Requires SMTP and HIBP licensing; sessions expire |
+| Privacy & account records | Android Keystore token encryption, verified-session revocation/deletion | Not full multi-user SaaS membership yet |
 
-## Live URL checks
+### Backend
+\`backend/\` — FastAPI. Start with \`docker compose up -d --build\` after setting required secrets on the server. It binds to **127.0.0.1:8088** by default: configure a separate reverse proxy with HTTPS, rate limiting and authentication safeguards before making it accessible externally.
 
-The APK requires a real HTTPS backend URL, entered in **Settings**. The repository includes `backend/` for hosting separately on a trusted server. API calls are not available by default until you configure a server. The backend is not production-hardened (no authentication, request limits or audit controls). **Do not expose it publicly without adding security controls.**
+**Do not put passwords or API keys into GitHub code.** Never paste secrets into chat. Store server secrets only on a trusted host; use GitHub Actions secrets solely for build-related credentials if needed.
 
-Configure the commercial Google Web Risk API key as an environment variable **only on the backend**. No key belongs in an Android APK or repository. Until that service is available, the backend returns `unverified` or heuristic `suspicious`, not "safe".
+See [deployment and security](docs/DEPLOYMENT-SECURITY.md) and [privacy draft](docs/PRIVACY-POLICY-DRAFT.md).
 
-## Status
+### What is not ready
+This is **not** a production Guardio equivalent. Real malware engine validation, signed Play Store release, paid subscriptions, family management, production accounts/auth infrastructure, industrial threat intelligence, independent security audits, and store-policy approval are outstanding. DNS filtering should be tested on a secondary device before being relied upon.
 
-- Android Studio Kotlin / Jetpack Compose project in `android/`
-- Python FastAPI link scanner in `backend/`
-- GitHub Actions debug APK build (unsigned for distribution, debug-signed for testing)
-- Requires review and hardening before Play Store submission
-
-## Version 0.2 experimental security modules
-
-**DNS Guard:** User-initiated DNS-only split-tunnel Android VPN. The user must accept an in-app disclosure and Android's VPN prompt. GhostForge reads DNS hostname queries routed to its local virtual resolver, compares against a local list, and answers blocked names with NXDOMAIN. Non-blocked DNS queries are forwarded to Cloudflare Families malware/phishing filtering resolver using HTTPS (DNS-over-HTTPS). It neither inspects encrypted HTTP paths nor filters traffic that bypasses the system DNS resolver (such as app-specific DoH). The reserved **malware.test** demo domain is blocked locally by default; Cloudflare Families also blocks its currently known malware/phishing domain categories. Additional coverage requires a vetted backend blocklist or manually supplied domains. For commercial resale, review Cloudflare service terms and licensing. The system allows only one VPN per Android profile. The user can stop the foreground service at any time. Test carefully on a noncritical device; early TUN/DNS support may affect connectivity and is not production-ready.
-
-**APK Inspector:** Uses Android's system document picker (no broad storage or installed-app inventory permissions), reads an APK locally (120 MB limit), computes its SHA-256 hash, inspects archive layout and package permissions, and optionally looks up the hash via HTTPS on your backend. An APK file is **not uploaded**. Unknown results never mean safe. This is *static triage*, not comprehensive malware detection.
-
-**Backend feeds:** Set `BLOCKED_DOMAINS` to a comma/newline-separated list of vetted domains; set `KNOWN_BAD_APK_SHA256` to verified malicious 64-character SHA-256 values, comma or newline separated. Without these feeds, only demo DNS filtering and APK permission heuristics are available. The backend is proof-of-concept and must be secured (authentication, rate limits, TLS reverse proxy, logging controls) before publicly exposed.
-
-Google Play distribution is not approved: the VPN functionality requires special declarations, prominent disclosure and privacy review. Use only the debug APK for testing. Do **not** market it as complete malware or identity protection.
-
-## Test checklist
-
-1. Install debug APK on Galaxy Tab S9+, grant VPN permission after reading the DNS disclosure, confirm notification is visible.
-2. Confirm `malware.test` fails DNS resolution while a normal domain resolves; disconnect and confirm normal connectivity returns.
-3. Confirm stopping DNS Guard disables the VPN. Try mobile and Wi-Fi networks and an existing VPN to check conflicts.
-4. Inspect a known harmless test APK using the file picker; note the hash, permissions and **unknown reputation**.
-5. Host the backend behind HTTPS, configure domain and SHA feeds, and verify known matching test values; test without a backend as well.
+Backend CI tests and Gradle debug APK compilation run on GitHub Actions for every push and pull request.

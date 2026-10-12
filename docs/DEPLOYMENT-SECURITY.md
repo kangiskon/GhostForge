@@ -7,7 +7,7 @@ This repository includes Android debug builds and a FastAPI proof-of-concept ser
 - Manual URL checks, QR decoding, and Android share-to-scan.
 - User-selected APK archive/package inspection; SHA-256 checks against a server-configured bad-hash list; never upload APK bytes.
 - Android device settings audit: screen lock, patch age, and developer USB debugging state.
-- Scam text investigator: rule-based warning signs plus **optional** AI narrative analysis.
+- Scam text investigator: rule-based warning signs plus **optional** AI narrative analysis. Screenshot images are OCR-extracted on device, and only reviewed text is submitted.
 - Verified email breach lookup plus opt-in periodic checks using Android WorkManager. Android may delay or skip scheduled work; the monitor only works when the backend is available and an email session is valid.
 
 ## Server deployment
