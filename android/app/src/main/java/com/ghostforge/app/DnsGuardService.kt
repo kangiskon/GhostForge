@@ -1,6 +1,7 @@
 package com.ghostforge.app
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
@@ -29,6 +30,12 @@ class DnsGuardService : VpnService() {
             private set
         @Volatile var blockedCount = 0
             private set
+        @Volatile var forwardedCount = 0
+            private set
+        @Volatile var resolverErrors = 0
+            private set
+        @Volatile var lastDiagnostic = "Not checked"
+            private set
         @Volatile var lastError = ""
             private set
     }
@@ -54,20 +61,45 @@ class DnsGuardService : VpnService() {
         if (intent?.action != START) return START_NOT_STICKY
         if (!active.compareAndSet(false, true)) return START_STICKY
         lastError = ""
+        lastDiagnostic = "Checking upstream encrypted DNS"
         val note = Notification.Builder(this, "ghostforge_dns")
             .setContentTitle("GhostForge DNS Guard")
-            .setContentText("DNS filtering active • Tap GhostForge to manage")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentText("Starting encrypted DNS protection")
+            .setSmallIcon(R.drawable.ic_ghost_status)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this, 1007,
+                    Intent(this, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Stop protection",
+                PendingIntent.getService(
+                    this, 1008,
+                    Intent(this, DnsGuardService::class.java).setAction(STOP),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
             .setOngoing(true)
             .build()
         startForeground(1007, note)
         workers.execute {
             try {
+                // Do not hijack DNS if the encrypted resolver cannot be reached.
+                val healthError = DnsGuardDiagnostics.checkResolver()
+                if (healthError != null) {
+                    lastError = healthError
+                    lastDiagnostic = "Upstream DNS unavailable"
+                    return@execute
+                }
+                lastDiagnostic = "Upstream DNS reachable"
                 loadDomains()
                 val descriptor = Builder()
                     .setSession("GhostForge DNS Guard")
                     .setMtu(1500)
-                    .addAddress("10.117.0.2", 32)
+                    .addAddress("10.117.0.2", 24)
                     .addDnsServer("10.117.0.1")
                     .addRoute("10.117.0.1", 32)
                     // Exclude GhostForge itself to avoid recursive lookups when contacting
@@ -81,9 +113,11 @@ class DnsGuardService : VpnService() {
                 }
                 tun = descriptor
                 running = true
+                lastDiagnostic = "VPN established; awaiting DNS queries"
                 processPackets(descriptor)
             } catch (ex: Exception) {
-                lastError = ex.message ?: "DNS Guard failed"
+                lastError = ex.javaClass.simpleName + ": " + (ex.message ?: "Unable to start VPN")
+                lastDiagnostic = "DNS Guard stopped after a service error"
             } finally {
                 stopGuard()
             }
@@ -146,6 +180,13 @@ class DnsGuardService : VpnService() {
 
     private fun reply(packet: ByteArray): ByteArray? {
         if (packet.size < 40) return null
+        val declaredLength = readU16(packet, 2)
+        if (declaredLength < 40 || declaredLength > packet.size) return null
+        // Process only packets addressed to our virtual DNS server.
+        if ((packet[16].toInt() and 255) != 10 ||
+            (packet[17].toInt() and 255) != 117 ||
+            (packet[18].toInt() and 255) != 0 ||
+            (packet[19].toInt() and 255) != 1) return null
         val version = (packet[0].toInt() ushr 4) and 15
         val ihl = (packet[0].toInt() and 15) * 4
         if (version != 4 || ihl < 20 || packet.size < ihl + 20 ||
@@ -163,13 +204,26 @@ class DnsGuardService : VpnService() {
             question == null -> dnsError(request, 1)
             isBlocked(question) -> {
                 blockedCount++
+                lastDiagnostic = "Blocked domain matched local blocklist"
                 dnsError(request, 3)
             }
             else -> dohLookup(request) ?: dnsError(request, 2)
         }
         if (answer == null) return null
         val total = 20 + 8 + answer.size
+        if (total > 1472) {
+            // Response exceeds the TUN MTU; return SERVFAIL rather than writing an
+            // oversized IPv4 packet or pretending the upstream lookup was safe.
+            return buildReply(packet, udp, dnsError(request, 2) ?: return null)
+        }
         if (total > 65535) return null
+        return buildReply(packet, udp, answer)
+    }
+
+    private fun buildReply(packet: ByteArray, udp: Int, answer: ByteArray): ByteArray? {
+        // IPv4 UDP checksum 0 is permitted; IP checksum is mandatory.
+        val total = 28 + answer.size
+        if (total > 1500) return null
         val out = ByteArray(total)
         out[0] = 0x45
         out[2] = (total ushr 8).toByte()
@@ -228,7 +282,11 @@ class DnsGuardService : VpnService() {
             conn.setRequestProperty("Accept", "application/dns-message")
             try {
                 conn.outputStream.use { it.write(dns) }
-                if (conn.responseCode != 200) null else {
+                if (conn.responseCode != 200) {
+                    resolverErrors++
+                    lastDiagnostic = "Encrypted DNS returned HTTP " + conn.responseCode
+                    null
+                } else {
                     val answer = conn.inputStream.use { input ->
                         val buffer = ByteArray(4096)
                         val output = java.io.ByteArrayOutputStream()
@@ -239,10 +297,23 @@ class DnsGuardService : VpnService() {
                         }
                         output.toByteArray()
                     }
-                    if (answer.size < 12) null else answer
+                    if (answer.size < 12 || answer[0] != dns[0] || answer[1] != dns[1] ||
+                        (answer[2].toInt() and 128) == 0) {
+                        resolverErrors++
+                        lastDiagnostic = "Invalid encrypted DNS response"
+                        null
+                    } else {
+                        forwardedCount++
+                        lastDiagnostic = "DNS lookup forwarded successfully"
+                        answer
+                    }
                 }
             } finally { conn.disconnect() }
-        } catch (_: Exception) { null }
+        } catch (ex: Exception) {
+            resolverErrors++
+            lastDiagnostic = "DNS forwarding failed: " + ex.javaClass.simpleName
+            null
+        }
     }
 
     private fun dnsError(request: ByteArray, rcode: Int): ByteArray? {
