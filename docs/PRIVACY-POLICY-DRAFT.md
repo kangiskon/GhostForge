@@ -35,3 +35,7 @@ The service should use HTTPS, least-privilege secrets, verified SMTP, encrypted 
 **Third-party providers and terms:** [REVIEW AND INSERT]
 
 This draft is not legal advice and cannot be used as an accurate public policy without verifying the final system behavior and operator details.
+
+
+## Privacy Shield (v0.8 beta)
+The optional Privacy Shield prepares searches of your own information using Google Search links. Search text is not persisted or submitted until the user chooses an external search. Google and subsequently visited sites may see the query. Licensed breach checks use the existing verified-email API and are available only with a configured backend, SMTP provider, and HIBP API key. The app does not scrape hidden services. Public exposure case records consist only of domain, exposure category, status and timestamps, encrypted on device using Android Keystore AES-GCM. Account/device deletion does not automatically erase the separately stored local Privacy Shield cases; users can delete them in Privacy Shield or by uninstalling the app. Removal letters are generated in memory and opened in an email app at the user's direction; they are never auto-sent or stored by GhostForge. The app cannot promise that a third party will comply with or permanently remove a listing. Case statuses are based on user reports, not independently verified by GhostForge.

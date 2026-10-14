@@ -6,11 +6,12 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.7.0
+## Features in v0.8.0
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
 | Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
+| Privacy Shield | User-controlled public exposure search links; HIBP breach checks for verified email; locally AES-GCM encrypted deletion cases; opt-out request drafts and manual response tracker | No universal dark-web crawler; no automatic site takedown or deletion guarantees; breach API requires SMTP and paid HIBP key |
 | QR Safety Review | QR codes are decoded as inert text and inspected before any browser option is shown; suspicious or unsupported QR contents cannot be opened from GhostForge | No scanner can prove safety; live reputation checks need the configured HTTPS API and a licensed threat intelligence key |
 | Phone Number Trace | User-entered offline phone number validation, numbering-plan country/region, assigned line type and NANP area prefix, optional user-initiated web search for public scam reports | Not owner identity, live location, current carrier, confirmed spam score, or active-line check; caller ID can be spoofed |
 | Webpage Inspector | Explicit opt-in HTTPS HTML fetch, no scripts, local parsing of forms, redirects, misleading links and scam wording | Only first static HTML (192 KiB max), no cookies, no redirects; does not inspect other apps |
@@ -55,3 +56,14 @@ The QR scanner now decodes a QR payload without opening it or entering a website
 
 ### PhoneInfoga-style OSINT search worksheet
 The **Phone Trace** tab still analyzes the number on-device using libphonenumber. In addition, six local public-source search queries are prepared, grouped by scam/spam reports, general mentions, business listings, public discussions, public social mentions and public PDFs. This is **inspired by PhoneInfoga's link-generating Googlesearch scanner**, not a bundled PhoneInfoga runtime or access to commercial carrier APIs. Nothing is scraped in the background or uploaded until the user explicitly enables and selects a public search; that search sends the number to Google and possibly websites reached from the results. Search results may refer to reassigned numbers or unrelated individuals and do not establish an owner's identity or geographic location. No GPS, contact, call-log or SMS permissions.
+
+### Privacy Shield v0.8 — exposure awareness and removal
+Privacy Shield is an opt-in privacy workflow for your own (or authorized) personal information.
+- Public web: locally prepares five indexed search links for an entered name, email or phone number. The user must attest to authority; no search is executed until they choose a link. The search provider receives the chosen query when opened. No automatic scraping or harvesting.
+- Licensed breach intelligence: connects to the existing **verified-email** Have I Been Pwned breach check when a self-hosted HTTPS API, SMTP verification and HIBP API subscription are configured. Missing credentials return "not checked", not "clean". This is known breach intelligence, **not** comprehensive monitoring of every dark-web marketplace.
+- Exposure tracker: stores only a public domain name, exposure category, status and timestamps. It drops personal data from profile URLs and does not save search terms, addresses, names, phone numbers or removal letters. A separate Android Keystore AES-256-GCM encrypted local vault can be deleted in the app; it has no account sync or cloud backup.
+- Removal: creates an editable request email to a contact address the user independently checks. The app opens their email program and **never sends it by itself**. The user manually confirms sending, receipt, and verified removal. No website is marked removed on mere submission, and no response status is fabricated.
+- Privacy: no new Android contacts, call-log, SMS, location or accessibility permissions; never require a password or one-time code from a listing site. The source code cannot remove copies from uncooperative sites.
+- The existing Breaches tab can optionally schedule background checks (WorkManager, approximate) for the user's verified email. This is not continuous dark-web crawling.
+
+**Do not upload sensitive identities or documents to random removal contacts.** Verify the official broker privacy contact and confirm any deletion claim independently. No test or implementation guarantees full removal from search caches, breaches or criminal forums.
