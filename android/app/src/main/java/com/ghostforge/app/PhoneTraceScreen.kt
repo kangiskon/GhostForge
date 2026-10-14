@@ -32,7 +32,7 @@ fun PhoneTraceScreen(initialNumber: String = "") {
     var publicSearchConsent by rememberSaveable { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Phone Number Trace", style = MaterialTheme.typography.headlineSmall,
+        Text("Phone Trace • OSINT", style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold)
         Text("Investigate a suspicious caller or text number using offline international " +
             "numbering-plan metadata. No contacts, call logs, SMS or location permissions.",
@@ -99,18 +99,32 @@ fun PhoneTraceScreen(initialNumber: String = "") {
                     "number in a search query. GhostForge won't upload it automatically.",
                     color = traceMuted, modifier = Modifier.padding(top = 8.dp))
             }
-            OutlinedButton(onClick = {
-                val query = "\"" + report.e164 + "\" scam spam caller reports"
-                val uri = Uri.parse("https://www.google.com/search?q=" + Uri.encode(query))
-                runCatching {
-                    ctx.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                }.onFailure { error = "No browser was available for the public lookup." }
-            }, enabled = publicSearchConsent, modifier = Modifier.fillMaxWidth()) {
-                Text("SEARCH PUBLIC SCAM REPORTS")
+            Text("PUBLIC-SOURCE OSINT INVESTIGATION", color = traceMint,
+                fontWeight = FontWeight.Bold)
+            Text("PhoneInfoga-style public search queries are prepared locally. " +
+                "Choose a category below; none of the searches runs automatically.",
+                color = traceMuted)
+            val searches = remember(report.e164) {
+                runCatching { PhoneOsintQueries.searches(report) }.getOrDefault(emptyList())
             }
-            Text("Public search results are unverified and can misidentify people. " +
-                "Never treat a name or location from a search result as confirmed.",
-                color = traceAmber)
+            searches.forEach { search ->
+                OutlinedButton(onClick = {
+                    val uri = Uri.parse(search.url)
+                    runCatching {
+                        ctx.startActivity(
+                            Intent(Intent.ACTION_VIEW, uri)
+                                .addCategory(Intent.CATEGORY_BROWSABLE)
+                        )
+                    }.onFailure { error = "No browser is available for that public lookup." }
+                }, enabled = publicSearchConsent, modifier = Modifier.fillMaxWidth()) {
+                    Text(search.title.uppercase())
+                }
+                Text(search.purpose, color = traceMuted)
+            }
+            Text("A search query is NOT proof of a match. Phone numbers can be " +
+                "reassigned or spoofed; public pages can be false or outdated. " +
+                "This tool never automatically scrapes social sites or attempts " +
+                "to access private subscriber records.", color = traceAmber)
         }
         Text("GhostForge cannot trace a person's live whereabouts, current phone carrier, " +
             "identity or actual caller solely from a phone number. Spoofed caller ID, " +

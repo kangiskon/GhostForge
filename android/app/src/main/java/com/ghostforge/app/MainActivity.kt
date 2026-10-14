@@ -75,6 +75,8 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     var endpointDraft by rememberSaveable { mutableStateOf(endpoint) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var link by rememberSaveable { mutableStateOf(shared) }
+    var qrContents by rememberSaveable { mutableStateOf("") }
+    var qrScanRevision by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<ScanFinding?>(null) }
@@ -239,6 +241,13 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     }
                     Section("Your security toolkit", "Analyze links shared from other apps or encoded in QR codes.")
                     Text("Saved security checks: " + savedHistory.size, color = mint)
+                    OutlinedButton(onClick = {
+                        onQr { code ->
+                            qrContents = code
+                            qrScanRevision++
+                            tab = 14
+                        }
+                    }) { Text("SCAN QR CODE SAFELY") }
                     OutlinedButton(onClick = { tab = 11 }) { Text("INSPECT A WEBPAGE'S HTML") }
                     OutlinedButton(onClick = { tab = 12 }) { Text("AUDIT ENCRYPTED DNS EXPOSURE") }
                     OutlinedButton(onClick = { tab = 13 }) { Text("TRACE A SUSPICIOUS PHONE NUMBER") }
@@ -254,7 +263,13 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                             OutlinedTextField(value = link, onValueChange = { link = it }, label = { Text("Website link") },
                                 modifier = Modifier.fillMaxWidth(), maxLines = 4)
                             Button(onClick = { scan(link) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("ANALYZE LINK") }
-                            OutlinedButton(onClick = { onQr { code -> link = code; scan(code) } }, modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = {
+                                onQr { code ->
+                                    qrContents = code
+                                    qrScanRevision++
+                                    tab = 14
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) {
                                 Text("SCAN QR CODE")
                             }
                         }
@@ -401,6 +416,23 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                 11 -> WebpageInspectorScreen(initialUrl = link)
                 12 -> EncryptedDnsAuditScreen()
                 13 -> PhoneTraceScreen()
+                14 -> key(qrScanRevision) {
+                    QrSafetyReviewScreen(
+                        payload = qrContents,
+                        endpoint = endpoint,
+                        onScanAgain = {
+                            onQr { code ->
+                                qrContents = code
+                                qrScanRevision++
+                                tab = 14
+                            }
+                        },
+                        onManualWebpageInspection = { destination ->
+                            link = destination
+                            tab = 11
+                        }
+                    )
+                }
                 3 -> {
                     Section("Settings", "Connect your trusted HTTPS GhostForge scanner server.")
                     OutlinedTextField(value = endpointDraft, onValueChange = { endpointDraft = it },
@@ -414,7 +446,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.6.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.7.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
