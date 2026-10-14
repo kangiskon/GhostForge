@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Header
 from urllib.parse import unquote
-from . import accounts, billing
+from . import accounts, billing, privacy_intelligence, privacy_removals
 from .scams import ScamRequest, ScamResponse, investigate
 from .breaches import EmailInput, VerifyInput, request_code, verify_code, auth_email, breach_lookup, erase
 from pydantic import BaseModel, Field
@@ -113,3 +113,36 @@ def billing_status(authorization: str | None = Header(default=None)):
 async def billing_verify(body: billing.PurchaseRequest,
                          authorization: str | None = Header(default=None)):
     return await billing.verify_subscription(auth_email(authorization), body)
+
+# Privacy Shield v0.9: verified-email only; no arbitrary address lookups.
+class PrivacyConsent(BaseModel):
+    consent: bool = False
+
+@app.post("/api/v1/privacy/stealer-logs")
+async def privacy_stealer_logs(
+    body: PrivacyConsent, authorization: str | None = Header(default=None)
+):
+    email = auth_email(authorization)
+    if not body.consent:
+        raise HTTPException(422, "User must authorize this licensed exposure lookup")
+    return await privacy_intelligence.stealer_log_check(email)
+
+@app.get("/api/v1/privacy/optery-status")
+async def privacy_optery_status(authorization: str | None = Header(default=None)):
+    auth_email(authorization)
+    return await privacy_intelligence.optery_status()
+
+@app.post("/api/v1/privacy/optout")
+def privacy_optout(
+    body: privacy_removals.OptOutSubmission,
+    authorization: str | None = Header(default=None)
+):
+    return privacy_removals.submit(auth_email(authorization), body)
+
+@app.get("/api/v1/privacy/optouts")
+def privacy_optout_history(authorization: str | None = Header(default=None)):
+    return privacy_removals.history(auth_email(authorization))
+
+@app.delete("/api/v1/privacy/optouts")
+def privacy_optout_erase(authorization: str | None = Header(default=None)):
+    return privacy_removals.erase(auth_email(authorization))

@@ -448,7 +448,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.8.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.9.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
