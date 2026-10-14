@@ -6,11 +6,12 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.5.0
+## Features in v0.6.0
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
 | Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
+| Phone Number Trace | User-entered offline phone number validation, numbering-plan country/region, assigned line type and NANP area prefix, optional user-initiated web search for public scam reports | Not owner identity, live location, current carrier, confirmed spam score, or active-line check; caller ID can be spoofed |
 | Webpage Inspector | Explicit opt-in HTTPS HTML fetch, no scripts, local parsing of forms, redirects, misleading links and scam wording | Only first static HTML (192 KiB max), no cookies, no redirects; does not inspect other apps |
 | Encrypted DNS Audit | Shows system Private DNS settings and documents DoH/DoT bypass limitations | Cannot decrypt, detect all apps' encrypted DNS, or inspect other apps' browsing |
 | DNS Guard | Optional DNS-only local VPN; Cloudflare Families anti-malware/phishing DNS plus custom blocklist | Not HTTPS-content interception; other VPN/Private DNS conflicts possible |
@@ -42,3 +43,8 @@ Backend CI tests and Gradle debug APK compilation run on GitHub Actions for ever
 Webpage inspection is disabled until the user checks an explicit consent box. The phone makes **one HTTPS request directly to the chosen public website**: the website may log the source IP and requested path. No JavaScript executes, no redirects are followed, no cookies are attached, no authentication is attempted, and HTML is not uploaded to GhostForge servers. Local/private IP addresses and hostnames are excluded at URL validation and connection-time DNS lookup. Only a limited initial HTML response (192 KiB) is read; images and scripts aren't fetched. Webpage results aren't stored in the history database. Never use this to scan private URLs, password-reset links, or pages that could trigger one-time actions.
 
 Encrypted DNS Audit reads Android's Private DNS setting and displays known protection gaps; it does not intercept other apps' encrypted DNS queries. A tested full-tunnel VPN would be necessary for even limited endpoint metadata monitoring and cannot passively decrypt third-party HTTPS/DoH without the relevant keys and consent. Nothing Phone testing remains pending.
+
+### Phone Number Trace privacy and limitations (v0.6.0)
+Open **Phone Trace** and enter a phone number manually. Google libphonenumber processes international numbering-plan metadata **on-device**. No contacts, call logs, SMS history or GPS permissions are requested. GhostForge does not store the entered phone number or automatically upload it to a backend or third-party data broker. The optional "Search public scam reports" button is disabled until the user explicitly checks a disclosure; it then opens Google Search with the phone number as part of the search query, disclosing it to that search provider.
+
+**Do not confuse a numbering-plan area code with a person's location.** Number portability, VoIP and spoofed caller ID make region and number type unreliable for identifying actual callers. A recognized number pattern is not a live-line validation and never means "safe." GhostForge does not reveal subscriber identity, private records, real-time GPS position, or current carrier.
