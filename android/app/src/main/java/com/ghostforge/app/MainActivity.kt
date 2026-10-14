@@ -212,7 +212,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
     }
     Scaffold(containerColor = ink, bottomBar = {
         Row(Modifier.fillMaxWidth().background(panel).navigationBarsPadding().horizontalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            listOf(0 to "Home", 4 to "DNS Guard", 11 to "Webpage", 12 to "DNS Audit", 13 to "Phone Trace", 1 to "Links", 6 to "Scams", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 9 to "Account", 10 to "Premium", 2 to "History", 3 to "Settings").forEach { (i, name) ->
+            listOf(0 to "Home", 4 to "DNS Guard", 11 to "Webpage", 12 to "DNS Audit", 13 to "Phone Trace", 15 to "Privacy Shield", 1 to "Links", 6 to "Scams", 5 to "APK Scan", 7 to "Device", 8 to "Breaches", 9 to "Account", 10 to "Premium", 2 to "History", 3 to "Settings").forEach { (i, name) ->
                 Text(name, modifier = Modifier.clickable { tab = i }.padding(10.dp),
                     color = if (tab == i) mint else muted, fontSize = 13.sp)
             }
@@ -251,6 +251,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                     OutlinedButton(onClick = { tab = 11 }) { Text("INSPECT A WEBPAGE'S HTML") }
                     OutlinedButton(onClick = { tab = 12 }) { Text("AUDIT ENCRYPTED DNS EXPOSURE") }
                     OutlinedButton(onClick = { tab = 13 }) { Text("TRACE A SUSPICIOUS PHONE NUMBER") }
+                    OutlinedButton(onClick = { tab = 15 }) { Text("PRIVACY SHIELD — FIND & REQUEST REMOVAL") }
                     OutlinedButton(onClick = { tab = 6 }) { Text("INVESTIGATE A SCAM MESSAGE") }
                     OutlinedButton(onClick = { tab = 7 }) { Text("CHECK DEVICE SECURITY") }
                     OutlinedButton(onClick = { tab = 8 }) { Text("MONITOR VERIFIED EMAIL BREACHES") }
@@ -416,6 +417,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                 11 -> WebpageInspectorScreen(initialUrl = link)
                 12 -> EncryptedDnsAuditScreen()
                 13 -> PhoneTraceScreen()
+                15 -> PrivacyShieldScreen(endpoint, onVerifyEmail = { tab = 8 })
                 14 -> key(qrScanRevision) {
                     QrSafetyReviewScreen(
                         payload = qrContents,
@@ -446,7 +448,7 @@ private fun GhostForgeScreen(shared: String, onQr: ((String) -> Unit) -> Unit) {
                         } else error = "Only HTTPS addresses are accepted."
                     }) { Text("Save backend") }
                     if (error.isNotBlank()) Note(error, muted)
-                    Note("Version 0.7.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
+                    Note("Version 0.8.0 • AI and breach APIs require separately configured credentials. DNS filtering and APK inspection are experimental. Billing and family features aren't active.", amber)
                 }
             }
         }
