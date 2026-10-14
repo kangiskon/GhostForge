@@ -6,11 +6,14 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.8.0
+## Features in v0.9.0
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
 | Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
+| Licensed stealer-log intelligence | Verified-email checks against HIBP stealerLogsByEmail returning affected website domains | Requires HIBP Pro API key and verified ownership of email domain; no credential dumps or universal dark-web crawling |
+| Authorized automatic opt-out emails | Verified users may consent to SMTP submission of a standardized broker deletion request to a domain-matched privacy mailbox | This submits requests only; SMTP acceptance does not mean a third party deleted data |
+| Optery partner API readiness | Securely checks Optery for Business API credential/plan connectivity | Actual member/paid subscription onboarding and automatic Optery removal jobs require partner provisioning |
 | Privacy Shield | User-controlled public exposure search links; HIBP breach checks for verified email; locally AES-GCM encrypted deletion cases; opt-out request drafts and manual response tracker | No universal dark-web crawler; no automatic site takedown or deletion guarantees; breach API requires SMTP and paid HIBP key |
 | QR Safety Review | QR codes are decoded as inert text and inspected before any browser option is shown; suspicious or unsupported QR contents cannot be opened from GhostForge | No scanner can prove safety; live reputation checks need the configured HTTPS API and a licensed threat intelligence key |
 | Phone Number Trace | User-entered offline phone number validation, numbering-plan country/region, assigned line type and NANP area prefix, optional user-initiated web search for public scam reports | Not owner identity, live location, current carrier, confirmed spam score, or active-line check; caller ID can be spoofed |
@@ -67,3 +70,12 @@ Privacy Shield is an opt-in privacy workflow for your own (or authorized) person
 - The existing Breaches tab can optionally schedule background checks (WorkManager, approximate) for the user's verified email. This is not continuous dark-web crawling.
 
 **Do not upload sensitive identities or documents to random removal contacts.** Verify the official broker privacy contact and confirm any deletion claim independently. No test or implementation guarantees full removal from search caches, breaches or criminal forums.
+
+### v0.9 licensed providers and opt-out automation
+**HIBP stealer logs:** GhostForge can request stealer-log *website domains* for the currently verified account's email via the licensed HIBP Pro endpoint. The domain of the email must be verified by the HIBP subscriber and the server must hold `HIBP_API_KEY`. Missing license, domain authorization or network error means NOT CHECKED, never safe. No passwords or other victims' records are retrieved.
+
+**Automated opt-out emails:** The verified account can authorize an individual standard deletion/suppression email to a privacy mailbox whose domain matches the broker domain entered by the user. SMTP credentials must be configured on the server. Max two submissions per verified account per 24h and one per broker per 30 days. The server stores a minimal SQLite audit (verified email, broker hostname, mailbox, timestamps and submission state). Requests are not sent on app launch; each requires consent. SMTP receipt **does not confirm deletion**. Users can delete their request history from GhostForge without canceling already sent email.
+
+**Optery for Business:** The server can check `GET /v1/plans` with `OPTERY_API_KEY=sk_test-...` and `OPTERY_ENVIRONMENT=sandbox` (or a production `sk_live-...` key and production environment). This connectivity check **does not create a member or enroll them in a removal plan**. Actual automated broker scanning/removals require separate Optery business-account onboarding, subscriber consent, an active paid plan and provider status tracking.
+
+The default backend URL `https://api.example.invalid` cannot perform licensed checks or SMTP submissions. Configure the existing GhostForge HTTPS backend, email verification and server-only keys. None of these are stored in the APK. Dark-web coverage is incomplete; no service can forcibly erase records on criminal marketplaces.

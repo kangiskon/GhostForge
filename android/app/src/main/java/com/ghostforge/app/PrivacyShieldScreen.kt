@@ -323,6 +323,8 @@ fun PrivacyShieldScreen(endpoint: String, onVerifyEmail: () -> Unit) {
         }
 
         if (message.isNotBlank()) Text(message, color = shieldAmber)
+        PrivacyAutomationPanel(endpoint)
+
         Text("IMPORTANT: GhostForge doesn't automatically erase information from " +
             "other websites or uncooperative dark-web sources. Removal requests require " +
             "the site owner's cooperation; each submission requires your approval. " +
