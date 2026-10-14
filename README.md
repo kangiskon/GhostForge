@@ -6,11 +6,12 @@ Android-first phishing, scam, device and breach-awareness security suite (beta).
 
 Open **Actions** → **Build GhostForge Android APK** → latest successful run → **Artifacts** → **GhostForge-Debug-APK**. Extract and install the debug APK. No local Android SDK or computer required.
 
-## Features in v0.6.0
+## Features in v0.7.0
 
 | Area | Functionality | Limits |
 | --- | --- | --- |
 | Link investigator | Offline URL warning-sign checks, QR scans, sharing, optional live threat lookups | Offline results never mean safe; Google Web Risk requires a hosted backend |
+| QR Safety Review | QR codes are decoded as inert text and inspected before any browser option is shown; suspicious or unsupported QR contents cannot be opened from GhostForge | No scanner can prove safety; live reputation checks need the configured HTTPS API and a licensed threat intelligence key |
 | Phone Number Trace | User-entered offline phone number validation, numbering-plan country/region, assigned line type and NANP area prefix, optional user-initiated web search for public scam reports | Not owner identity, live location, current carrier, confirmed spam score, or active-line check; caller ID can be spoofed |
 | Webpage Inspector | Explicit opt-in HTTPS HTML fetch, no scripts, local parsing of forms, redirects, misleading links and scam wording | Only first static HTML (192 KiB max), no cookies, no redirects; does not inspect other apps |
 | Encrypted DNS Audit | Shows system Private DNS settings and documents DoH/DoT bypass limitations | Cannot decrypt, detect all apps' encrypted DNS, or inspect other apps' browsing |
@@ -48,3 +49,9 @@ Encrypted DNS Audit reads Android's Private DNS setting and displays known prote
 Open **Phone Trace** and enter a phone number manually. Google libphonenumber processes international numbering-plan metadata **on-device**. No contacts, call logs, SMS history or GPS permissions are requested. GhostForge does not store the entered phone number or automatically upload it to a backend or third-party data broker. The optional "Search public scam reports" button is disabled until the user explicitly checks a disclosure; it then opens Google Search with the phone number as part of the search query, disclosing it to that search provider.
 
 **Do not confuse a numbering-plan area code with a person's location.** Number portability, VoIP and spoofed caller ID make region and number type unreliable for identifying actual callers. A recognized number pattern is not a live-line validation and never means "safe." GhostForge does not reveal subscriber identity, private records, real-time GPS position, or current carrier.
+
+### GhostForge v0.7 — Scan QR before opening
+The QR scanner now decodes a QR payload without opening it or entering a website automatically. The **QR Safety Review** screen checks scheme, hostname, port, encoded controls, local URL warning signs, and—when a configured backend is available—online threat-intelligence responses. It never launches Wi-Fi setup, telephone, SMS, payment, app installation, intent: or javascript: payloads. Plain HTTP URLs, local/IP destinations, shortened links and URLs with suspicious formatting are blocked from its Open action. Confirmed malicious URLs are blocked. If no threat provider is configured or it cannot be reached, the verdict is **UNVERIFIED**, not SAFE; opening requires the user's explicit acknowledgement. If online lookup returns no listing, GhostForge states **NOT LISTED**, not safe, and still requires user acknowledgement. The result display does not open the QR destination or follow redirects by itself. A user may choose to inspect a validated public HTTPS page's limited initial HTML before opening it, with separate consent.
+
+### PhoneInfoga-style OSINT search worksheet
+The **Phone Trace** tab still analyzes the number on-device using libphonenumber. In addition, six local public-source search queries are prepared, grouped by scam/spam reports, general mentions, business listings, public discussions, public social mentions and public PDFs. This is **inspired by PhoneInfoga's link-generating Googlesearch scanner**, not a bundled PhoneInfoga runtime or access to commercial carrier APIs. Nothing is scraped in the background or uploaded until the user explicitly enables and selects a public search; that search sends the number to Google and possibly websites reached from the results. Search results may refer to reassigned numbers or unrelated individuals and do not establish an owner's identity or geographic location. No GPS, contact, call-log or SMS permissions.
